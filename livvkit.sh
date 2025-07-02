@@ -83,7 +83,7 @@ if [ ${arg_nbr} -eq 0 ]; then
 fi # !arg_nbr
 
 # Set default values and paths
-dbg_lvl=1
+dbg_lvl=0
 drc_lvk="${drc_root}/livvkit"
 drc_ts="${drc_root}/livvkit/ts"
 drc_clm="${drc_root}/livvkit/clm"
@@ -168,7 +168,7 @@ for ish_nm in ais gis ; do
     eval ${cmd_tms}
     
 done # !ish_nm
-	
+
 if [ ${dbg_lvl} -ge 1 ]; then
     date_crr=$(date +"%s")
     date_dff=$((date_crr-date_tm))
