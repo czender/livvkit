@@ -15,7 +15,7 @@
 # Production:
 # screen # Start screen
 # fl_in=${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc
-# ~/livvkit/livvkit.sh --dbg=- --do_cahd ${fl_in} > ~/foo.txt 2>&1 &
+# ~/livvkit/livvkit.sh --dbg=0 --do_cahd ${fl_in} > ~/foo.txt 2>&1 &
 # Ctl-A D # Detach screen
 # tail ~/foo.txt # Monitor progress
 # screen -ls # List screens
@@ -83,13 +83,13 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     printf "${fnt_rvr}Basic usage:\n"
     printf "${fnt_nrm} ${fnt_bld}${spt_nm} fl_in${fnt_nrm} # Specify LIVVkit input file\n"
     echo "Command-line options [long-option synonyms in ${fnt_tlc}italics${fnt_nrm}]:"
-    echo " ${fnt_bld}--cahd${fnt_nrm} Link E3SM-climo to AMWG-climo filenames [${fnt_tlc}amwg_links, AMWG_link${fnt_nrm}]"
+    echo " ${fnt_bld}--cahd${fnt_nrm}     Perform (time-consuming) copy, append, hyperslab, derive tasks (default ${fnt_bld}${flg_do_cp_apn_hyp_drv}${fnt_nrm}) [${fnt_tlc}cahd, cp_apn_hyp_drv${fnt_nrm}]"
     echo "${fnt_rvr}-d${fnt_nrm} ${fnt_bld}dbg_lvl${fnt_nrm}  Debug level (default ${fnt_bld}${dbg_lvl}${fnt_nrm}) [${fnt_tlc}dbg_lvl, dbg, debug, debug_level${fnt_nrm}]"
+    echo " ${fnt_bld}--do_cahd${fnt_nrm}  Perform (time-consuming) copy, append, hyperslab, derive tasks [${fnt_tlc}do_cahd, do_cp_apn_hyp_drv${fnt_nrm}]"
+    echo " ${fnt_bld}--no_cahd${fnt_nrm}  Do not perform (time-consuming) copy, append, hyperslab, derive tasks [${fnt_tlc}no_cahd, no_cp_apn_hyp_drv${fnt_nrm}]"
     printf "\n"
-    printf "${fnt_rvr}Examples:${fnt_nrm}\n${fnt_bld}${spt_nm} ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc ${fnt_nrm}# Typical LIVVkit processing\n"
-    printf "${fnt_bld}${spt_nm} --dbg=1 ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc ${fnt_nrm}# Debugging = 1\n"
-    echo " ${fnt_bld}--do_cahd${fnt_nrm}   Perform (time-consuming) copy, append, hyperslab, derive tasks. do_cp_apn_hyp_drv${fnt_nrm}]"
-    echo " ${fnt_bld}--no_cahd${fnt_nrm}   Do not perform (time-consuming) copy, append, hyperslab, derive tasks. no_cp_apn_hyp_drv${fnt_nrm}]"
+    printf "${fnt_rvr}Examples:${fnt_nrm}\n${fnt_bld}${spt_nm} ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc ${fnt_nrm}# Typical first-time workflow\n"
+    printf "${fnt_bld}${spt_nm} --no_cahd ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc ${fnt_nrm}# Turn-off CAHD for subsequent invocations\n"
     exit 1
 } # !fnc_usg_prn()
 
