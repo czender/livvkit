@@ -194,7 +194,7 @@ printf "Begin Analysis Workflow\n\n"
 # Loop over ice sheets
 for ish_nm in ais gis ; do
     
-    fl_ish="${fl_in/${yyyy_srt_end}/${ish_nm}}"
+    fl_ish="${fl_in/${yyyy_srt_end}/${yyyy_srt_end}_${ish_nm}}" # [sng] File original data plus ice-sheet specific Icemask and appended/derived fields
     if [ ${fl_in} = ${fl_ish} ]; then
 	echo "ERROR: fl_in == fl_ish"
 	echo "DEBUG: yyyy_srt_end = ${yyyy_srt_end}, ish_nm=${ish_nm}"
