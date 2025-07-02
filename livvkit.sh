@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 
-# Purpose: Analyze LIVVKit-friendly timeseries
+# Purpose: Analyze LIVVkit-friendly timeseries
 # Prequisites: NCO
 
 # Usage:
 # ~/livvkit/livvkit.sh ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc
 # ~/livvkit/livvkit.sh /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0001_0100.nc
+# ~/livvkit/livvkit.sh /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0101_0200.nc
 # ~/livvkit/livvkit.sh /global/cfs/cdirs/e3sm/zender/livvkit/v2.1.r025.IGERA5ELM_MLI-deep_firn_1980_2020.nc
 # ~/livvkit/livvkit.sh ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc > ~/foo.txt 2>&1 &
 
@@ -76,6 +77,23 @@ function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_
     exit 1
 } # !fnc_usg_prn()
 
+function trim_leading_zeros {
+    # Purpose: Trim leading zeros from string representing an integer
+    # Why, you ask? Because Bash treats zero-padded integers as octal!
+    # This is surprisingly hard to workaround
+    # My workaround is to remove leading zeros prior to arithmetic
+    # Usage: trim_leading zeros ${sng}
+    sng_trm=${1} # [sng] Trimmed string
+    # Use Bash 2.X pattern matching to remove up to three leading zeros, one at a time
+    sng_trm=${sng_trm##0} # NeR98 p. 99
+    sng_trm=${sng_trm##0}
+    sng_trm=${sng_trm##0}
+    # If all zeros removed, replace with single zero
+    if [ ${sng_trm} = '' ]; then 
+	sng_trm='0'
+    fi # !sng_trm
+} # !trim_leading_zeros()
+
 # Check argument number and complain accordingly
 arg_nbr=$#
 if [ ${arg_nbr} -eq 0 ]; then
@@ -83,35 +101,48 @@ if [ ${arg_nbr} -eq 0 ]; then
 fi # !arg_nbr
 
 # Set default values and paths
-dbg_lvl=0
-drc_lvk="${drc_root}/livvkit"
-drc_ts="${drc_root}/livvkit/ts"
-drc_clm="${drc_root}/livvkit/clm"
+dbg_lvl=0 # [enm] Debugging level
+drc_lvk="${drc_root}/livvkit" # [sng] Directory for LIVVkit-input timeseries
+drc_ts="${drc_root}/livvkit/ts" # [sng] Directory for timeseries output by this analysis
+drc_clm="${drc_root}/livvkit/clm" # [sng] Directory climatologies output by this analysis
+flg_do_cp_apn_hyp_drv='Yes' # [flg] Perform (time-consuming) copy, append, hyperslab, derive tasks
 
 # Derive per-experiment values
-fll_nm=$1
-drc_in="$(dirname ${fll_nm})"
-fl_in="$(basename ${fll_nm})"
+fll_nm=$1 # [sng] Full (directory+file) input name
+drc_in="$(dirname ${fll_nm})" # [sng] Input directory
+fl_in="$(basename ${fll_nm})" # [sng] Input file
 [[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG drc_in = ${drc_in}"
 [[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG fl_in = ${fl_in}"
-fl_rx='^(.*)_([0123456789][0123456789][0123456789][0123456789])_([0123456789][0123456789][0123456789][0123456789]).nc$'
+fl_rx='^(.*)_([0123456789][0123456789][0123456789][0123456789])_([0123456789][0123456789][0123456789][0123456789]).nc$' # [sng] Regular expression for input filenames of form caseid_YYYY1_YYYY2.nc
 if [[ "${fl_in}" =~ ${fl_rx} ]]; then
     caseid=${BASH_REMATCH[1]}
     yr_srt=${BASH_REMATCH[2]}
     yr_end=${BASH_REMATCH[3]}
+    trim_leading_zeros ${yr_srt}
+    yr_srt_rth=${sng_trm}
+    yyyy_srt=`printf "%04d" ${yr_srt_rth}`
+    trim_leading_zeros ${yr_end}
+    yr_end_rth=${sng_trm}
+    yyyy_end=`printf "%04d" ${yr_end_rth}`
 else
     echo "ERROR: Input file name does not match regular expression '${fl_rx}'"
     echo "HINT: Input file name must have form like 'caseid_YYYY1_YYYY2.nc'"
 fi # !fl_in
 [[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG caseid = ${caseid}, yr_srt = ${yr_srt}, yr_end = ${yr_end}"
 
-# Define variables
-msk_rsn='r05'
-yyyy_srt=`printf "%04d" ${yr_srt}`
-yyyy_end=`printf "%04d" ${yr_end}`
+# Derive dates
+trim_leading_zeros ${yr_srt}
+yr_srt_rth=${sng_trm}
+yyyy_srt=`printf "%04d" ${yr_srt_rth}`
+trim_leading_zeros ${yr_end}
+yr_end_rth=${sng_trm}
+yyyy_end=`printf "%04d" ${yr_end_rth}`
 yyyy_srt_end="${yyyy_srt}_${yyyy_end}" # 1980_2020
 yyyymm_srt_end_out="${yyyy_srt}01_${yyyy_end}12" # 198001_202012
+[[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG yyyy_srt = ${yyyy_srt}, yyyy_end = ${yyyy_end}, yyyy_srt_end = ${yyyy_srt_end}"
 
+# Define variables
+msk_rsn='r05' # [sng] Resolution of ELM experiment in ice sheet masks
 if [ ${caseid} = 'v2.1.r025.IGERA5ELM_MLI-deep_firn' ]; then
     msk_rsn='r025'
 fi # !caseid
@@ -126,13 +157,15 @@ for ish_nm in ais gis ; do
     fl_ish=${fl_in/${yyyy_srt_end}/${ish_nm}}
     if [ ${fl_in} = ${fl_ish} ]; then
 	echo "ERROR: fl_in == fl_ish"
+	echo "DEBUG: yyyy_srt_end = ${yyyy_srt_end}, ish_nm=${ish_nm}"
 	exit 1
     fi # !fl_in
     
-    fl_avg=${fl_ish/${ish_nm}/${ish_nm}_txy}
-    fl_tms=${fl_ish/${ish_nm}/${ish_nm}_t}
-    fl_xy=${fl_ish/${ish_nm}/${ish_nm}_xy}
+    fl_avg=${fl_ish/${ish_nm}/${ish_nm}_txy} # [sng] File containing spatio-temporal average
+    fl_tms=${fl_ish/${ish_nm}/${ish_nm}_t} # [sng] File containing temporal average
+    fl_xy=${fl_ish/${ish_nm}/${ish_nm}_xy} # [sng] File containing spatial average
 
+    hyp_arg='' # [sng] ncks hyperslab argument for ice-sheet bounding box
     if [ ${ish_nm} = 'ais' ]; then
 	hyp_arg='-d lat,-90.,-60.0'
     fi # !ish_nm
@@ -141,25 +174,27 @@ for ish_nm in ais gis ; do
     fi # !ish_nm
     [[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG ish_nm = ${ish_nm}, hyp_arg = ${hyp_arg}"
 
-    # Copy input file to file with ice-sheet name and work on that
-    cmd_cp="/bin/cp ${drc_in}/${fl_in} ${drc_in}/${fl_ish}"
-    echo ${cmd_cp}
-    eval ${cmd_cp}
-
-    # Add Icemask to input file
-    cmd_apn="ncks -A -C -v Icemask ${DATA}/grids/msk_${ish_nm}_rcm_${msk_rsn}.nc ${drc_in}/${fl_ish}"
-    echo ${cmd_apn}
-    eval ${cmd_apn}
-
-    # Hyperslab LIVVkit file with Icemask
-    cmd_hyp="ncks -O ${hyp_arg} ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
-    echo ${cmd_hyp}
-    eval ${cmd_hyp}
-
-    # Add area_mask and derived variables
-    cmd_drv="ncap2 -O -s 'area*=1.0e6;area@units=\"meter2\";area_mask=area*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (including snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Change in snowpack mass\";' ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
-    echo ${cmd_drv}
-    eval ${cmd_drv}
+    if [ ${flg_do_cp_apn_hyp_drv} = 'Yes' ]; then
+	# Copy input file to file with ice-sheet name and work on that
+	cmd_cp="/bin/cp ${drc_in}/${fl_in} ${drc_in}/${fl_ish}"
+	echo ${cmd_cp}
+	eval ${cmd_cp}
+	
+	# Add Icemask to input file
+	cmd_apn="ncks -A -C -v Icemask ${DATA}/grids/msk_${ish_nm}_rcm_${msk_rsn}.nc ${drc_in}/${fl_ish}"
+	echo ${cmd_apn}
+	eval ${cmd_apn}
+	
+	# Hyperslab LIVVkit file with Icemask
+	cmd_hyp="ncks -O ${hyp_arg} ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
+	echo ${cmd_hyp}
+	eval ${cmd_hyp}
+	
+	# Add area_mask and derived variables
+	cmd_drv="ncap2 -O -s 'area*=1.0e6;area@units=\"meter2\";area_mask=area*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (including snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Change in snowpack mass\";' ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
+	echo ${cmd_drv}
+	eval ${cmd_drv}
+    done # !flg_do_cp_apn_hyp_drv
 
     # Compute area-weighted timeseries
     cmd_xy="ncwa -O -a lat,lon -w area_mask ${drc_in}/${fl_ish} ${drc_in}/${fl_xy}"
