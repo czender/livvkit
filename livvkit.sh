@@ -4,19 +4,21 @@
 # Prequisites: NCO
 
 # Usage:
-# ~/livvkit/livvkit.sh 
 # ~/livvkit/livvkit.sh ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc
-# ~/livvkit/livvkit.sh > ~/foo.txt 2>&1 & # 
+# ~/livvkit/livvkit.sh /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0001_0100.nc
+# ~/livvkit/livvkit.sh /global/cfs/cdirs/e3sm/zender/livvkit/v2.1.r025.IGERA5ELM_MLI-deep_firn_1980_2020.nc
+# ~/livvkit/livvkit.sh ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc > ~/foo.txt 2>&1 &
 
 # Production:
 # screen # Start screen
-# ~/livvkit/livvkit.sh > ~/foo.txt 2>&1 &
+# fl_in=${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc
+# ~/livvkit/livvkit.sh ${fl_in}> ~/foo.txt 2>&1 &
 # Ctl-A D # Detach screen
 # tail ~/foo.txt # Monitor progress
 # screen -ls # List screens
 # screen -r <ID> # Re-attach screen
 
-# Locations of final processed LIVVkit data:
+# Locations of input and final processed LIVVkit data:
 # /global/cfs/cdirs/e3sm/zender/livvkit
 # /lcrc/group/e3sm/ac.zender/scratch/livvkit
 
@@ -155,17 +157,15 @@ for ish_nm in ais gis ; do
     echo ${cmd_drv}
     eval ${cmd_drv}
 
-# Compute area-weighted timeseries
-    cmd_xy="ncwa -O -6 -a lat,lon -w area_mask ${drc_in}/${fl_ish} ${drc_in}/${fl_xy}"
+    # Compute area-weighted timeseries
+    cmd_xy="ncwa -O -a lat,lon -w area_mask ${drc_in}/${fl_ish} ${drc_in}/${fl_xy}"
     echo ${cmd_xy}
     eval ${cmd_xy}
 
-# Compute time-weighted region
-    if false; then
-	cmd_t="ncwa -O -6 -a lat,lon -w area_mask ${drc_in}/${fl_ish} ${drc_in}/${fl_t}"
-	echo ${cmd_t}
-	eval ${cmd_t}
-    fi # !false
+    # Compute time-mean region
+    cmd_tms="ncra -O -d time,,,12,12 --per_record_weights --wgt 31,28,31,30,31,30,31,31,30,31,30,31 ${drc_in}/${fl_ish} ${drc_in}/${fl_tms}"
+    echo ${cmd_tms}
+    eval ${cmd_tms}
     
 done # !ish_nm
 	
