@@ -124,7 +124,11 @@ printf "Begin Step 1: Add Icemask to input file\n\n"
 for ish_nm in ais gis ; do
     
     fl_ish=${fl_in/${yyyy_srt_end}/${ish_nm}}
-
+    if [ ${fl_in} = ${fl_ish} ]; then
+	echo "ERROR: fl_in == fl_ish"
+	exit 1
+    fi # !fl_in
+    
     fl_avg=${fl_ish/${ish_nm}/${ish_nm}_txy}
     fl_tms=${fl_ish/${ish_nm}/${ish_nm}_t}
     fl_xy=${fl_ish/${ish_nm}/${ish_nm}_xy}
