@@ -6,16 +6,16 @@
 # Debug with 'bash -x livvkit.sh --dbg=dbg_lvl' where 0 <= dbg_lvl <= 5
 
 # Usage:
-# ~/livvkit/livvkit.sh ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc
-# ~/livvkit/livvkit.sh /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0001_0100.nc
-# ~/livvkit/livvkit.sh /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0101_0200.nc
+# ~/livvkit/livvkit.sh --dbg=0 --no_cahd ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc
+# ~/livvkit/livvkit.sh --no_cahd /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0001_0100.nc
+# ~/livvkit/livvkit.sh --do_cahd /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0101_0200.nc
 # ~/livvkit/livvkit.sh /global/cfs/cdirs/e3sm/zender/livvkit/v2.1.r025.IGERA5ELM_MLI-deep_firn_1980_2020.nc
 # ~/livvkit/livvkit.sh ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc > ~/foo.txt 2>&1 &
 
 # Production:
 # screen # Start screen
 # fl_in=${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc
-# ~/livvkit/livvkit.sh ${fl_in}> ~/foo.txt 2>&1 &
+# ~/livvkit/livvkit.sh --dbg=- --do_cahd ${fl_in} > ~/foo.txt 2>&1 &
 # Ctl-A D # Detach screen
 # tail ~/foo.txt # Monitor progress
 # screen -ls # List screens
@@ -143,10 +143,17 @@ while getopts :d:-: OPT; do
     esac # !OPT
 done # !getopts
 shift $((OPTIND-1)) # Advance one argument
-psn_nbr=$#
+psn_nbr=$# # [nbr] Number of positional parameters (besides \$0)
+if [ ${psn_nbr} -gt 1 ]; then
+    echo "ERROR: Found ${psn_nbr} positional parameters, expected only one (the input file name)"
+    echo "HINT: Provide input file name after all options as first positional parameter"
+fi # !psn_nbr
+for ((psn_idx=1;psn_idx<=psn_nbr;psn_idx++)); do
+	fll_nm=${!psn_idx} # [sng] Full (directory+file) input name
+	fl_nbr=${psn_nbr}
+done # !psn_idx
 
 # Derive per-experiment values
-fll_nm=$1 # [sng] Full (directory+file) input name
 drc_in="$(dirname ${fll_nm})" # [sng] Input directory
 fl_in="$(basename ${fll_nm})" # [sng] Input file
 [[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG drc_in = ${drc_in}"
@@ -159,6 +166,7 @@ if [[ "${fl_in}" =~ ${fl_rx} ]]; then
 else
     echo "ERROR: Input file name does not match regular expression '${fl_rx}'"
     echo "HINT: Input file name must have form like 'caseid_YYYY1_YYYY2.nc'"
+    exit 1
 fi # !fl_in
 [[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG caseid = ${caseid}, yr_srt = ${yr_srt}, yr_end = ${yr_end}"
 
