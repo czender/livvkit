@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
 # Purpose: Analyze LIVVkit-friendly timeseries
-# Prequisites: NCO
+# Prerequisites: Bash, NCO
+# Script could use other shells, e.g., dash (Debian default) after rewriting function definitions and loops
+# Debug with 'bash -x livvkit.sh --dbg=dbg_lvl' where 0 <= dbg_lvl <= 5
 
 # Usage:
 # ~/livvkit/livvkit.sh ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc
@@ -26,9 +28,9 @@
 spt_src="${BASH_SOURCE[0]}"
 [[ -z "${spt_src}" ]] && spt_src="${0}" # Use ${0} when BASH_SOURCE is unavailable (e.g., dash)
 while [ -h "${spt_src}" ]; do # Recursively resolve ${spt_src} until file is no longer a symlink
-  drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
-  spt_src="$(readlink "${spt_src}")"
-  [[ ${spt_src} != /* ]] && spt_src="${drc_spt}/${spt_src}" # If ${spt_src} was relative symlink, resolve it relative to path where symlink file was located
+    drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
+    spt_src="$(readlink "${spt_src}")"
+    [[ ${spt_src} != /* ]] && spt_src="${drc_spt}/${spt_src}" # If ${spt_src} was relative symlink, resolve it relative to path where symlink file was located
 done
 cmd_ln="${spt_src} ${@}"
 drc_spt="$( cd -P "$( dirname "${spt_src}" )" && pwd )"
@@ -68,12 +70,26 @@ if [ -n "${TERM}" ]; then
     fi # !tput
 fi # !TERM
 
+# Defaults for command-line options and some derived variables
+# Modify these defaults to save typing later
+dbg_lvl=0 # [enm] Debugging level
+drc_lvk="${drc_root}/livvkit" # [sng] Directory for LIVVkit-input timeseries
+drc_ts="${drc_root}/livvkit/ts" # [sng] Directory for timeseries output by this analysis
+drc_clm="${drc_root}/livvkit/clm" # [sng] Directory climatologies output by this analysis
+flg_do_cp_apn_hyp_drv='Yes' # [flg] Perform (time-consuming) copy, append, hyperslab, derive tasks
+
 function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_nm{} syntax
     # Print usage
     printf "${fnt_rvr}Basic usage:\n"
     printf "${fnt_nrm} ${fnt_bld}${spt_nm} fl_in${fnt_nrm} # Specify LIVVkit input file\n"
+    echo "Command-line options [long-option synonyms in ${fnt_tlc}italics${fnt_nrm}]:"
+    echo " ${fnt_bld}--cahd${fnt_nrm} Link E3SM-climo to AMWG-climo filenames [${fnt_tlc}amwg_links, AMWG_link${fnt_nrm}]"
+    echo "${fnt_rvr}-d${fnt_nrm} ${fnt_bld}dbg_lvl${fnt_nrm}  Debug level (default ${fnt_bld}${dbg_lvl}${fnt_nrm}) [${fnt_tlc}dbg_lvl, dbg, debug, debug_level${fnt_nrm}]"
     printf "\n"
-    printf "Examples: ${fnt_bld}${spt_nm} ${fl_in}\n"
+    printf "${fnt_rvr}Examples:${fnt_nrm}\n${fnt_bld}${spt_nm} ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc ${fnt_nrm}# Typical LIVVkit processing\n"
+    printf "${fnt_bld}${spt_nm} --dbg=1 ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc ${fnt_nrm}# Debugging = 1\n"
+    echo " ${fnt_bld}--do_cahd${fnt_nrm}   Perform (time-consuming) copy, append, hyperslab, derive tasks. do_cp_apn_hyp_drv${fnt_nrm}]"
+    echo " ${fnt_bld}--no_cahd${fnt_nrm}   Do not perform (time-consuming) copy, append, hyperslab, derive tasks. no_cp_apn_hyp_drv${fnt_nrm}]"
     exit 1
 } # !fnc_usg_prn()
 
@@ -97,15 +113,37 @@ function trim_leading_zeros {
 # Check argument number and complain accordingly
 arg_nbr=$#
 if [ ${arg_nbr} -eq 0 ]; then
-  fnc_usg_prn
+    fnc_usg_prn
 fi # !arg_nbr
 
-# Set default values and paths
-dbg_lvl=0 # [enm] Debugging level
-drc_lvk="${drc_root}/livvkit" # [sng] Directory for LIVVkit-input timeseries
-drc_ts="${drc_root}/livvkit/ts" # [sng] Directory for timeseries output by this analysis
-drc_clm="${drc_root}/livvkit/clm" # [sng] Directory climatologies output by this analysis
-flg_do_cp_apn_hyp_drv='Yes' # [flg] Perform (time-consuming) copy, append, hyperslab, derive tasks
+# Parse command-line options:
+# http://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options
+# http://tuxtweaks.com/2014/05/bash-getopts
+while getopts :d:-: OPT; do
+    case ${OPT} in
+	d) dbg_lvl="${OPTARG}" ;; # Debugging level
+	-) LONG_OPTARG="${OPTARG#*=}"
+	   case ${OPTARG} in
+	       # Hereafter ${OPTARG} is long argument key, and ${LONG_OPTARG}, if any, is long argument value
+	       # Long options with no argument, no short option counterpart
+	       # Long options with argument, no short option counterpart
+	       # Long options with short counterparts, ordered by short option key
+	       dbg_lvl=?* | dbg=?* | debug=?* | debug_level=?* ) dbg_lvl="${LONG_OPTARG}" ;; # -d # Debugging level
+	       cahd | cp_apn_hyp_drv ) flg_do_cp_apn_hyp_drv=${LONG_OPTARG} ;; # # Perform (time-consuming) copy, append, hyperslab, derive tasks
+	       do_cahd | do_cp_apn_hyp_drv ) flg_do_cp_apn_hyp_drv='Yes' ;; # # Perform (time-consuming) copy, append, hyperslab, derive tasks
+	       do_cahd=?* | do_cp_apn_hyp_drv=?* ) echo "No argument allowed for --${OPTARG switch}" >&2; exit 1 ;; # # Perform (time-consuming) copy, append, hyperslab, derive tasks
+	       no_cahd | no_cp_apn_hyp_drv ) flg_do_cp_apn_hyp_drv='No' ;; # # Perform (time-consuming) copy, append, hyperslab, derive tasks
+	       no_cahd=?* | no_cp_apn_hyp_drv=?* ) echo "No argument allowed for --${OPTARG switch}" >&2; exit 1 ;; # -l # Perform (time-consuming) copy, append, hyperslab, derive tasks
+               '' ) break ;; # "--" terminates argument processing
+               * ) printf "\nERROR: Unrecognized option ${fnt_bld}--${OPTARG}${fnt_nrm}\n" >&2; fnc_usg_prn ;;
+	   esac ;; # !OPTARG
+	\?) # Unrecognized option
+	    printf "\nERROR: Option ${fnt_bld}-${OPTARG}${fnt_nrm} not recognized\n" >&2
+	    fnc_usg_prn ;;
+    esac # !OPT
+done # !getopts
+shift $((OPTIND-1)) # Advance one argument
+psn_nbr=$#
 
 # Derive per-experiment values
 fll_nm=$1 # [sng] Full (directory+file) input name
@@ -118,12 +156,6 @@ if [[ "${fl_in}" =~ ${fl_rx} ]]; then
     caseid=${BASH_REMATCH[1]}
     yr_srt=${BASH_REMATCH[2]}
     yr_end=${BASH_REMATCH[3]}
-    trim_leading_zeros ${yr_srt}
-    yr_srt_rth=${sng_trm}
-    yyyy_srt=`printf "%04d" ${yr_srt_rth}`
-    trim_leading_zeros ${yr_end}
-    yr_end_rth=${sng_trm}
-    yyyy_end=`printf "%04d" ${yr_end_rth}`
 else
     echo "ERROR: Input file name does not match regular expression '${fl_rx}'"
     echo "HINT: Input file name must have form like 'caseid_YYYY1_YYYY2.nc'"
@@ -149,22 +181,22 @@ fi # !caseid
 [[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG msk_rsn = ${msk_rsn}"
 
 [[ ${dbg_lvl} -ge 1 ]] && date_tm=$(date +"%s")
-printf "Begin Step 1: Add Icemask to input file\n\n"
+printf "Begin Analysis Workflow\n\n"
 
 # Loop over ice sheets
 for ish_nm in ais gis ; do
     
-    fl_ish=${fl_in/${yyyy_srt_end}/${ish_nm}}
+    fl_ish="${fl_in/${yyyy_srt_end}/${ish_nm}}"
     if [ ${fl_in} = ${fl_ish} ]; then
 	echo "ERROR: fl_in == fl_ish"
 	echo "DEBUG: yyyy_srt_end = ${yyyy_srt_end}, ish_nm=${ish_nm}"
 	exit 1
     fi # !fl_in
     
-    fl_avg=${fl_ish/${ish_nm}/${ish_nm}_txy} # [sng] File containing spatio-temporal average
-    fl_tms=${fl_ish/${ish_nm}/${ish_nm}_t} # [sng] File containing temporal average
-    fl_xy=${fl_ish/${ish_nm}/${ish_nm}_xy} # [sng] File containing spatial average
-
+    fl_avg="${fl_ish/${ish_nm}/${ish_nm}_txy}" # [sng] File containing spatio-temporal average
+    fl_tms="${fl_ish/${ish_nm}/${ish_nm}_t}" # [sng] File containing temporal average
+    fl_xy="${fl_ish/${ish_nm}/${ish_nm}_xy}" # [sng] File containing spatial average
+    
     hyp_arg='' # [sng] ncks hyperslab argument for ice-sheet bounding box
     if [ ${ish_nm} = 'ais' ]; then
 	hyp_arg='-d lat,-90.,-60.0'
@@ -173,35 +205,40 @@ for ish_nm in ais gis ; do
 	hyp_arg='-d lat,59.125,83.875 -d lon,-73.25,-10.75'
     fi # !ish_nm
     [[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG ish_nm = ${ish_nm}, hyp_arg = ${hyp_arg}"
-
+    
     if [ ${flg_do_cp_apn_hyp_drv} = 'Yes' ]; then
-	# Copy input file to file with ice-sheet name and work on that
+	printf "Step 1: Copy input file to file with ice-sheet name and work on that ...\n"
 	cmd_cp="/bin/cp ${drc_in}/${fl_in} ${drc_in}/${fl_ish}"
 	echo ${cmd_cp}
 	eval ${cmd_cp}
 	
-	# Add Icemask to input file
+	printf "Step 2: Add Icemask to input file ...\n"
 	cmd_apn="ncks -A -C -v Icemask ${DATA}/grids/msk_${ish_nm}_rcm_${msk_rsn}.nc ${drc_in}/${fl_ish}"
 	echo ${cmd_apn}
 	eval ${cmd_apn}
 	
-	# Hyperslab LIVVkit file with Icemask
+	printf "Step 3: Hyperslab LIVVkit file with Icemask to current ice sheet...\n"
 	cmd_hyp="ncks -O ${hyp_arg} ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
 	echo ${cmd_hyp}
 	eval ${cmd_hyp}
-	
-	# Add area_mask and derived variables
-	cmd_drv="ncap2 -O -s 'area*=1.0e6;area@units=\"meter2\";area_mask=area*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (including snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Change in snowpack mass\";' ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
-	echo ${cmd_drv}
-	eval ${cmd_drv}
-    done # !flg_do_cp_apn_hyp_drv
 
-    # Compute area-weighted timeseries
+	if true; then
+	    printf "Step 3: Add area_mask weight and derive other variables ...\n"
+	    cmd_drv="ncap2 -O -s 'area*=1.0e6;area@units=\"meter2\";area_mask=area*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (including snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Change in snowpack mass\";' ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
+	    echo ${cmd_drv}
+	    eval ${cmd_drv}
+	fi # !true
+
+    else # !flg_do_cp_apn_hyp_drv
+	printf "Skipping time-consuming Steps 1-4: copy, append, hyperslab, and derive steps...\n"
+    fi # !flg_do_cp_apn_hyp_drv
+
+    printf "Step 5: Compute area-weighted timeseries ...\n"
     cmd_xy="ncwa -O -a lat,lon -w area_mask ${drc_in}/${fl_ish} ${drc_in}/${fl_xy}"
     echo ${cmd_xy}
     eval ${cmd_xy}
 
-    # Compute time-mean region
+    printf "Step 6: Compute time-mean region ...\n"
     cmd_tms="ncra -O -d time,,,12,12 --per_record_weights --wgt 31,28,31,30,31,30,31,31,30,31,30,31 ${drc_in}/${fl_ish} ${drc_in}/${fl_tms}"
     echo ${cmd_tms}
     eval ${cmd_tms}
