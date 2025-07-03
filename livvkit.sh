@@ -202,8 +202,8 @@ for ish_nm in ais gis ; do
     fi # !fl_in
     
     fl_avg="${fl_ish/${ish_nm}/${ish_nm}_txy}" # [sng] File containing spatio-temporal average
-    fl_tms="${fl_ish/${ish_nm}/${ish_nm}_t}" # [sng] File containing temporal average
-    fl_xy="${fl_ish/${ish_nm}/${ish_nm}_xy}" # [sng] File containing spatial average
+    fl_tav="${fl_ish/${ish_nm}/${ish_nm}_t}" # [sng] File containing temporal average
+    fl_xav="${fl_ish/${ish_nm}/${ish_nm}_xy}" # [sng] File containing spatial average
     
     hyp_arg='' # [sng] ncks hyperslab argument for ice-sheet bounding box
     if [ ${ish_nm} = 'ais' ]; then
@@ -267,25 +267,36 @@ for ish_nm in ais gis ; do
     fi # !dbg
 
     printf "Step 5: Compute area-weighted timeseries ...\n"
-    [[ ${dbg_lvl} -ge 1 ]] && date_xy=$(date +"%s")
-    cmd_xy="ncwa -O -a lat,lon -w area_mask ${drc_in}/${fl_ish} ${drc_in}/${fl_xy}"
-    echo ${cmd_xy}
-    eval ${cmd_xy}
+    [[ ${dbg_lvl} -ge 1 ]] && date_xav=$(date +"%s")
+    cmd_xav="ncwa -O -a lat,lon -w area_mask ${drc_in}/${fl_ish} ${drc_in}/${fl_xav}"
+    echo ${cmd_xav}
+    eval ${cmd_xav}
     if [ ${dbg_lvl} -ge 1 ]; then
 	date_crr=$(date +"%s")
-	date_dff=$((date_crr-date_xy))
+	date_dff=$((date_crr-date_xav))
 	echo "Elapsed time to spatially average timeseries = $((date_dff/60))m$((date_dff % 60))s"
     fi # !dbg
 
     printf "Step 6: Compute time-mean region ...\n"
-    [[ ${dbg_lvl} -ge 1 ]] && date_tms=$(date +"%s")
-    cmd_tms="ncra -O -d time,,,12,12 --per_record_weights --wgt 31,28,31,30,31,30,31,31,30,31,30,31 ${drc_in}/${fl_ish} ${drc_in}/${fl_tms}"
-    echo ${cmd_tms}
-    eval ${cmd_tms}
+    [[ ${dbg_lvl} -ge 1 ]] && date_tav=$(date +"%s")
+    cmd_tav="ncra -O -d time,,,12,12 --per_record_weights --wgt 31,28,31,30,31,30,31,31,30,31,30,31 ${drc_in}/${fl_ish} ${drc_in}/${fl_tav}"
+    echo ${cmd_tav}
+    eval ${cmd_tav}
     if [ ${dbg_lvl} -ge 1 ]; then
 	date_crr=$(date +"%s")
-	date_dff=$((date_crr-date_tms))
+	date_dff=$((date_crr-date_tav))
 	echo "Elapsed time to temporally average timeseries = $((date_dff/60))m$((date_dff % 60))s"
+    fi # !dbg
+    
+    printf "Step 7: Compute spatio-temporal mean region ...\n"
+    [[ ${dbg_lvl} -ge 1 ]] && date_avg=$(date +"%s")
+    cmd_avg="ncap2 -O -s '@all=get_vars_in();*sz=@all.size();for(*idx=0;idx<sz;idx++){@var_nm=@all(idx);if(*@var_nm.ndims() >= 3){*@var_nm*=Icemask;@att_note=sprint(@var_nm,\"%s@note\");*@att_note=\"ELM/RACMO intersection mask has been applied\";@sum_nm=sprint(@var_nm,\"%s_sum\");print(\"Computing \");print(@sum_nm);print(\"...\n\");*@sum_nm=(*@var_nm*area_m).total();@sum_nm_gtxyr=push(@sum_nm,\"_GTxyr\");print(\"Computing \");print(@sum_nm_gtxyr);print(\"...\n\");*@sum_nm_gtxyr=*@sum_nm*365*24*60*60/1.0e12;}}' ${drc_in}/${fl_tav} ${drc_in}/${fl_avg}"
+    echo ${cmd_avg}
+    eval ${cmd_avg}
+    if [ ${dbg_lvl} -ge 1 ]; then
+	date_crr=$(date +"%s")
+	date_dff=$((date_crr-date_avg))
+	echo "Elapsed time to spatio-temporally average timeseries = $((date_dff/60))m$((date_dff % 60))s"
     fi # !dbg
     
     if [ ${ish_nm} = 'gis' ]; then printf "\n" ; fi
