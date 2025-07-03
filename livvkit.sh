@@ -10,6 +10,7 @@
 # ~/livvkit/livvkit.sh --no_cah /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0001_0100.nc
 # ~/livvkit/livvkit.sh --do_cah /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0101_0200.nc
 # ~/livvkit/livvkit.sh /global/cfs/cdirs/e3sm/zender/livvkit/v2.1.r025.IGERA5ELM_MLI-deep_firn_1980_2020.nc
+# ~/livvkit/livvkit.sh --do_cah /global/cfs/cdirs/e3sm/zender/livvkit/v3.LR.piControl-deepfirn-mec_0001_0100.nc
 # ~/livvkit/livvkit.sh ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc > ~/foo.txt 2>&1 &
 
 # Production:
@@ -156,8 +157,8 @@ done # !psn_idx
 # Derive per-experiment values
 drc_in="$(dirname ${fll_nm})" # [sng] Input directory
 fl_in="$(basename ${fll_nm})" # [sng] Input file
-[[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG drc_in = ${drc_in}"
-[[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG fl_in = ${fl_in}"
+[[ ${dbg_lvl} -ge 2 ]] && echo "${spt_nm}: DEBUG drc_in = ${drc_in}"
+[[ ${dbg_lvl} -ge 2 ]] && echo "${spt_nm}: DEBUG fl_in = ${fl_in}"
 fl_rx='^(.*)_([0123456789][0123456789][0123456789][0123456789])_([0123456789][0123456789][0123456789][0123456789]).nc$' # [sng] Regular expression for input filenames of form caseid_YYYY1_YYYY2.nc
 if [[ "${fl_in}" =~ ${fl_rx} ]]; then
     caseid=${BASH_REMATCH[1]}
@@ -168,7 +169,7 @@ else
     echo "HINT: Input file name must have form like 'caseid_YYYY1_YYYY2.nc'"
     exit 1
 fi # !fl_in
-[[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG caseid = ${caseid}, yr_srt = ${yr_srt}, yr_end = ${yr_end}"
+[[ ${dbg_lvl} -ge 2 ]] && echo "${spt_nm}: DEBUG caseid = ${caseid}, yr_srt = ${yr_srt}, yr_end = ${yr_end}"
 
 # Derive dates
 trim_leading_zeros ${yr_srt}
@@ -179,14 +180,14 @@ yr_end_rth=${sng_trm}
 yyyy_end=`printf "%04d" ${yr_end_rth}`
 yyyy_srt_end="${yyyy_srt}_${yyyy_end}" # 1980_2020
 yyyymm_srt_end_out="${yyyy_srt}01_${yyyy_end}12" # 198001_202012
-[[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG yyyy_srt = ${yyyy_srt}, yyyy_end = ${yyyy_end}, yyyy_srt_end = ${yyyy_srt_end}"
+[[ ${dbg_lvl} -ge 2 ]] && echo "${spt_nm}: DEBUG yyyy_srt = ${yyyy_srt}, yyyy_end = ${yyyy_end}, yyyy_srt_end = ${yyyy_srt_end}"
 
 # Define variables
 msk_rsn='r05' # [sng] Resolution of ELM experiment in ice sheet masks
 if [ ${caseid} = 'v2.1.r025.IGERA5ELM_MLI-deep_firn' ]; then
     msk_rsn='r025'
 fi # !caseid
-[[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG msk_rsn = ${msk_rsn}"
+[[ ${dbg_lvl} -ge 2 ]] && echo "${spt_nm}: DEBUG msk_rsn = ${msk_rsn}"
 
 [[ ${dbg_lvl} -ge 1 ]] && date_tm=$(date +"%s")
 
@@ -211,44 +212,81 @@ for ish_nm in ais gis ; do
     if [ ${ish_nm} = 'gis' ]; then
 	hyp_arg='-d lat,59.125,83.875 -d lon,-73.25,-10.75'
     fi # !ish_nm
-    [[ ${dbg_lvl} -ge 1 ]] && echo "${spt_nm}: DEBUG ish_nm = ${ish_nm}, hyp_arg = ${hyp_arg}"
+    [[ ${dbg_lvl} -ge 2 ]] && echo "${spt_nm}: DEBUG ish_nm = ${ish_nm}, hyp_arg = ${hyp_arg}"
     
     printf "\nBegin Analysis Workflow for "
     if [ ${ish_nm} = 'ais' ]; then printf "Antarctica\n" ; else printf "Greenland\n" ; fi
     if [ ${flg_do_cp_apn_hyp} = 'Yes' ]; then
+
 	printf "Step 1: Copy input file to file with ice-sheet name and work on that ...\n"
+	[[ ${dbg_lvl} -ge 1 ]] && date_cp=$(date +"%s")
 	cmd_cp="/bin/cp ${drc_in}/${fl_in} ${drc_in}/${fl_ish}"
 	echo ${cmd_cp}
 	eval ${cmd_cp}
+	if [ ${dbg_lvl} -ge 1 ]; then
+	    date_crr=$(date +"%s")
+	    date_dff=$((date_crr-date_cp))
+	    echo "Elapsed time to copy input file = $((date_dff/60))m$((date_dff % 60))s"
+	fi # !dbg
 	
 	printf "Step 2: Add Icemask to input file ...\n"
+	[[ ${dbg_lvl} -ge 1 ]] && date_apn=$(date +"%s")
 	cmd_apn="ncks --hdr_pad=10000 -A -C -v Icemask ${DATA}/grids/msk_${ish_nm}_rcm_${msk_rsn}.nc ${drc_in}/${fl_ish}"
 	echo ${cmd_apn}
 	eval ${cmd_apn}
+	if [ ${dbg_lvl} -ge 1 ]; then
+	    date_crr=$(date +"%s")
+	    date_dff=$((date_crr-date_apn))
+	    echo "Elapsed time to append mask = $((date_dff/60))m$((date_dff % 60))s"
+	fi # !dbg
 	
 	printf "Step 3: Hyperslab LIVVkit file with Icemask to current ice sheet...\n"
+	[[ ${dbg_lvl} -ge 1 ]] && date_hyp=$(date +"%s")
 	cmd_hyp="ncks -O ${hyp_arg} ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
 	echo ${cmd_hyp}
 	eval ${cmd_hyp}
+	if [ ${dbg_lvl} -ge 1 ]; then
+	    date_crr=$(date +"%s")
+	    date_dff=$((date_crr-date_hyp))
+	    echo "Elapsed time to hyperslab input file to ice sheet = $((date_dff/60))m$((date_dff % 60))s"
+	fi # !dbg
 
     else # !flg_do_cp_apn_hyp
 	printf "Skipping time-consuming Steps 1-4: copy, append, hyperslab, and derive steps...\n"
     fi # !flg_do_cp_apn_hyp
 
     printf "Step 4: Derive area_mask weight and other variables ...\n"
+    [[ ${dbg_lvl} -ge 1 ]] && date_drv=$(date +"%s")
     cmd_drv="ncap2 -O -s 'area_m=area*1.0e6;area_m@units=\"meter2\";area_mask=area_m*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (includes snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Snowpack mass/storage tendency\";' ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
     echo ${cmd_drv}
     eval ${cmd_drv}
+    if [ ${dbg_lvl} -ge 1 ]; then
+	date_crr=$(date +"%s")
+	date_dff=$((date_crr-date_drv))
+	echo "Elapsed time to derive variables = $((date_dff/60))m$((date_dff % 60))s"
+    fi # !dbg
 
     printf "Step 5: Compute area-weighted timeseries ...\n"
+    [[ ${dbg_lvl} -ge 1 ]] && date_xy=$(date +"%s")
     cmd_xy="ncwa -O -a lat,lon -w area_mask ${drc_in}/${fl_ish} ${drc_in}/${fl_xy}"
     echo ${cmd_xy}
     eval ${cmd_xy}
+    if [ ${dbg_lvl} -ge 1 ]; then
+	date_crr=$(date +"%s")
+	date_dff=$((date_crr-date_xy))
+	echo "Elapsed time to spatially average timeseries = $((date_dff/60))m$((date_dff % 60))s"
+    fi # !dbg
 
     printf "Step 6: Compute time-mean region ...\n"
+    [[ ${dbg_lvl} -ge 1 ]] && date_tms=$(date +"%s")
     cmd_tms="ncra -O -d time,,,12,12 --per_record_weights --wgt 31,28,31,30,31,30,31,31,30,31,30,31 ${drc_in}/${fl_ish} ${drc_in}/${fl_tms}"
     echo ${cmd_tms}
     eval ${cmd_tms}
+    if [ ${dbg_lvl} -ge 1 ]; then
+	date_crr=$(date +"%s")
+	date_dff=$((date_crr-date_tms))
+	echo "Elapsed time to temporally average timeseries = $((date_dff/60))m$((date_dff % 60))s"
+    fi # !dbg
     
     if [ ${ish_nm} = 'gis' ]; then printf "\n" ; fi
 
