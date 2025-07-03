@@ -257,7 +257,7 @@ for ish_nm in ais gis ; do
 
     printf "Step 4: Derive area_mask weight and other variables ...\n"
     [[ ${dbg_lvl} -ge 1 ]] && date_drv=$(date +"%s")
-    cmd_drv="ncap2 -O -s 'area_m=area*1.0e6;area_m@units=\"meter2\";area_mask=area_m*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (includes snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Snowpack mass/storage tendency\";' ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
+    cmd_drv="ncap2 -O -s 'area_m=area*1.0e6;area_m@units=\"meter2\";area_mask=area_m*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (includes snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Snowpack mass/storage tendency\";PRECIP=SNOW+RAIN;PRECIP@units=\"mm s-1\";PRECIP@long_name=\"Total precipitation = SNOW + RAIN\";' ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
     echo ${cmd_drv}
     eval ${cmd_drv}
     if [ ${dbg_lvl} -ge 1 ]; then
@@ -288,15 +288,15 @@ for ish_nm in ais gis ; do
 	echo "Elapsed time to temporally average timeseries = $((date_dff/60))m$((date_dff % 60))s"
     fi # !dbg
     
-    printf "Step 7: Compute spatio-temporal mean region ...\n"
+    printf "Step 7: Apply Icemask to temporal means, define gridcell sums, integrate to find spatio-temporal means ...\n"
     [[ ${dbg_lvl} -ge 1 ]] && date_avg=$(date +"%s")
-    cmd_avg="ncap2 -O -s '@all=get_vars_in();*sz=@all.size();for(*idx=0;idx<sz;idx++){@var_nm=@all(idx);if(*@var_nm.ndims() >= 3){*@var_nm*=Icemask;@att_note=sprint(@var_nm,\"%s@note\");*@att_note=\"ELM/RACMO intersection mask has been applied\";@sum_nm=sprint(@var_nm,\"%s_sum\");print(\"Computing \");print(@sum_nm);print(\"...\n\");*@sum_nm=(*@var_nm*area_m).total();@sum_nm_gtxyr=push(@sum_nm,\"_GTxyr\");print(\"Computing \");print(@sum_nm_gtxyr);print(\"...\n\");*@sum_nm_gtxyr=*@sum_nm*365*24*60*60/1.0e12;}}' ${drc_in}/${fl_tav} ${drc_in}/${fl_avg}"
+    cmd_avg="ncap2 -O -s '@all=get_vars_in();*sz=@all.size();for(*idx=0;idx<sz;idx++){@var_nm=@all(idx);if(*@var_nm.ndims() >= 3){*@var_nm*=Icemask;@att_note=sprint(@var_nm,\"%s@note\");*@att_note=\"ELM/RACMO intersection mask has been applied\";@sum_nm=sprint(@var_nm,\"%s_sum\");print(\"Computing \");print(@sum_nm);print(\"...\n\");*@sum_nm=(*@var_nm*area_m).total();@sum_nm_gtxyr=push(@sum_nm,\"_GTxyr\");print(\"Computing \");print(@sum_nm_gtxyr);print(\"...\n\");*@sum_nm_gtxyr=*@sum_nm*365*24*60*60/1.0e12;}}' ${drc_in}/${fl_tav} ${drc_in}/${fl_tav}"
     echo ${cmd_avg}
     eval ${cmd_avg}
     if [ ${dbg_lvl} -ge 1 ]; then
 	date_crr=$(date +"%s")
 	date_dff=$((date_crr-date_avg))
-	echo "Elapsed time to spatio-temporally average timeseries = $((date_dff/60))m$((date_dff % 60))s"
+	echo "Elapsed time to mask, sum, and spatio-temporally average = $((date_dff/60))m$((date_dff % 60))s"
     fi # !dbg
     
     if [ ${ish_nm} = 'gis' ]; then printf "\n" ; fi
@@ -308,6 +308,11 @@ if [ ${dbg_lvl} -ge 1 ]; then
     date_dff=$((date_crr-date_tm))
     printf "Elapsed time to analyze LIVVkit timeseries $((date_dff/60))m$((date_dff % 60))s\n\n"
 fi # !dbg
+
+echo "Quick plots and statistics:"
+echo "ncvis ${drc_in}/${fl_tav} & # Plot climatological mean ice sheet"
+echo "ncvis ${drc_in}/${fl_xav} & # Plot spatial mean timeseries"
+echo "ncks -C -v QICE_sum_GTxyr,QRUNOFF_sum_GTxyr,PRECIP_sum_GTxyr,QSOIL_sum_GTxyr ${drc_in}/${fl_tav} & # Print statistics"
 
 date_end=$(date +"%s")
 printf "Completed LIVVkit analysis at `date`\n"
