@@ -290,7 +290,6 @@ for ish_nm in ais gis ; do
     
     printf "Step 7: Apply Icemask to temporal means, define gridcell sums, integrate to find spatio-temporal means ...\n"
     [[ ${dbg_lvl} -ge 1 ]] && date_avg=$(date +"%s")
-    #    cmd_avg="ncap2 -O -s '@all=get_vars_in();*sz=@all.size();for(*idx=0;idx<sz;idx++){@var_nm=@all(idx);if(*@var_nm.ndims() >= 3){*@var_nm*=Icemask;@att_note=sprint(@var_nm,\"%s@note\");*@att_note=\"ELM/RACMO intersection mask has been applied\";@sum_nm=sprint(@var_nm,\"%s_sum\");print(\"Computing \");print(@sum_nm);print(\"...\n\");*@sum_nm=(*@var_nm*area_m).total();@sum_nm_gtxyr=push(@sum_nm,\"_GTxyr\");print(\"Computing \");print(@sum_nm_gtxyr);print(\"...\n\");*@sum_nm_gtxyr=*@sum_nm*365*24*60*60/1.0e12;}}' ${drc_in}/${fl_tav} ${drc_in}/${fl_tav}"
     cmd_avg="ncap2 -O -s '@all=get_vars_in();*sz=@all.size();for(*idx=0;idx<sz;idx++){@var_nm=@all(idx);if(*@var_nm.ndims() >= 3){*@var_nm*=Icemask;@att_note=sprint(@var_nm,\"%s@note\");*@att_note=\"ELM/RACMO intersection mask has been applied\";@sum_nm=sprint(@var_nm,\"%s_sum\");print(\"Computing \");print(@sum_nm);print(\"...\n\");*@sum_nm=(*@var_nm*area_m).total().float();@sum_nm_gtxyr=push(@sum_nm,\"_GTxyr\");print(\"Computing \");print(@sum_nm_gtxyr);print(\"...\n\");*@sum_nm_gtxyr=*@sum_nm*365*24*60*60/1.0e12f;}}' ${drc_in}/${fl_tav} ${drc_in}/${fl_tav}"
     echo ${cmd_avg}
     eval ${cmd_avg}
