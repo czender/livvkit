@@ -157,8 +157,10 @@ done # !psn_idx
 # Derive per-experiment values
 drc_in="$(dirname ${fll_nm})" # [sng] Input directory
 fl_in="$(basename ${fll_nm})" # [sng] Input file
+drc_out="${drc_in}/${fl_in/\.nc/}" # [sng] Output directory
 [[ ${dbg_lvl} -ge 2 ]] && echo "${spt_nm}: DEBUG drc_in = ${drc_in}"
 [[ ${dbg_lvl} -ge 2 ]] && echo "${spt_nm}: DEBUG fl_in = ${fl_in}"
+[[ ${dbg_lvl} -ge 2 ]] && echo "${spt_nm}: DEBUG drc_out = ${drc_out}"
 fl_rx='^(.*)_([0123456789][0123456789][0123456789][0123456789])_([0123456789][0123456789][0123456789][0123456789]).nc$' # [sng] Regular expression for input filenames of form caseid_YYYY1_YYYY2.nc
 if [[ "${fl_in}" =~ ${fl_rx} ]]; then
     caseid=${BASH_REMATCH[1]}
@@ -170,6 +172,23 @@ else
     exit 1
 fi # !fl_in
 [[ ${dbg_lvl} -ge 2 ]] && echo "${spt_nm}: DEBUG caseid = ${caseid}, yr_srt = ${yr_srt}, yr_end = ${yr_end}"
+
+# Create output directory
+if [ -n "${drc_out}" ] && [ ! -d "${drc_out}" ]; then 
+    chr_fst=${drc_out:0:1}
+    if [ "${chr_fst}" = '-' ]; then
+	echo "${spt_nm}: ERROR Attempting to mkdir user-specified output directory \"${drc_out}\" will fail because directory name begins with '-' which is an option indicator"
+	echo "${spt_nm}: HINT Specify output directory name that does not begin with '-'"
+	exit 1
+    fi # !chr_fst
+    cmd_mkd="mkdir -p ${drc_out}"
+    eval ${cmd_mkd}
+    if [ "$?" -ne 0 ]; then
+	printf "${spt_nm}: ERROR Failed to create output directory. Debug this:\n${cmd_mkd}\n"
+	printf "${spt_nm}: HINT Creating a directory requires proper write permissions\n"
+	exit 1
+    fi # !err
+fi # !drc_out
 
 # Derive dates
 trim_leading_zeros ${yr_srt}
@@ -220,7 +239,7 @@ for ish_nm in ais gis ; do
 
 	printf "Step 1: Copy input file to file with ice-sheet name and work on that ...\n"
 	[[ ${dbg_lvl} -ge 1 ]] && date_cp=$(date +"%s")
-	cmd_cp="/bin/cp ${drc_in}/${fl_in} ${drc_in}/${fl_ish}"
+	cmd_cp="/bin/cp ${drc_in}/${fl_in} ${drc_out}/${fl_ish}"
 	echo ${cmd_cp}
 	eval ${cmd_cp}
 	if [ ${dbg_lvl} -ge 1 ]; then
@@ -231,7 +250,7 @@ for ish_nm in ais gis ; do
 	
 	printf "Step 2: Add Icemask to input file ...\n"
 	[[ ${dbg_lvl} -ge 1 ]] && date_apn=$(date +"%s")
-	cmd_apn="ncks --hdr_pad=10000 -A -C -v Icemask ${DATA}/grids/msk_${ish_nm}_rcm_${msk_rsn}.nc ${drc_in}/${fl_ish}"
+	cmd_apn="ncks --hdr_pad=10000 -A -C -v Icemask ${DATA}/grids/msk_${ish_nm}_rcm_${msk_rsn}.nc ${drc_out}/${fl_ish}"
 	echo ${cmd_apn}
 	eval ${cmd_apn}
 	if [ ${dbg_lvl} -ge 1 ]; then
@@ -242,7 +261,7 @@ for ish_nm in ais gis ; do
 	
 	printf "Step 3: Hyperslab LIVVkit file with Icemask to current ice sheet...\n"
 	[[ ${dbg_lvl} -ge 1 ]] && date_hyp=$(date +"%s")
-	cmd_hyp="ncks -O ${hyp_arg} ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
+	cmd_hyp="ncks -O ${hyp_arg} ${drc_out}/${fl_ish} ${drc_out}/${fl_ish}"
 	echo ${cmd_hyp}
 	eval ${cmd_hyp}
 	if [ ${dbg_lvl} -ge 1 ]; then
@@ -257,7 +276,7 @@ for ish_nm in ais gis ; do
 
     printf "Step 4: Derive area_mask weight and other variables ...\n"
     [[ ${dbg_lvl} -ge 1 ]] && date_drv=$(date +"%s")
-    cmd_drv="ncap2 -O -s 'area_m=area*1.0e6;area_m@units=\"meter2\";area_mask=area_m*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (includes snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Snowpack mass/storage tendency\";PRECIP=SNOW+RAIN;PRECIP@units=\"mm s-1\";PRECIP@long_name=\"Total precipitation = SNOW + RAIN\";' ${drc_in}/${fl_ish} ${drc_in}/${fl_ish}"
+    cmd_drv="ncap2 -O -s 'area_m=area*1.0e6;area_m@units=\"meter2\";area_mask=area_m*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (includes snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Snowpack mass/storage tendency\";PRECIP=SNOW+RAIN;PRECIP@units=\"mm s-1\";PRECIP@long_name=\"Total precipitation = SNOW + RAIN\";' ${drc_out}/${fl_ish} ${drc_out}/${fl_ish}"
     echo ${cmd_drv}
     eval ${cmd_drv}
     if [ ${dbg_lvl} -ge 1 ]; then
@@ -268,7 +287,7 @@ for ish_nm in ais gis ; do
 
     printf "Step 5: Compute area-weighted timeseries ...\n"
     [[ ${dbg_lvl} -ge 1 ]] && date_xav=$(date +"%s")
-    cmd_xav="ncwa -O -a lat,lon -w area_mask ${drc_in}/${fl_ish} ${drc_in}/${fl_xav}"
+    cmd_xav="ncwa -O -a lat,lon -w area_mask ${drc_out}/${fl_ish} ${drc_out}/${fl_xav}"
     echo ${cmd_xav}
     eval ${cmd_xav}
     if [ ${dbg_lvl} -ge 1 ]; then
@@ -279,7 +298,7 @@ for ish_nm in ais gis ; do
 
     printf "Step 6: Compute time-mean region ...\n"
     [[ ${dbg_lvl} -ge 1 ]] && date_tav=$(date +"%s")
-    cmd_tav="ncra -O -d time,,,12,12 --per_record_weights --wgt 31,28,31,30,31,30,31,31,30,31,30,31 ${drc_in}/${fl_ish} ${drc_in}/${fl_tav}"
+    cmd_tav="ncra -O -d time,,,12,12 --per_record_weights --wgt 31,28,31,30,31,30,31,31,30,31,30,31 ${drc_out}/${fl_ish} ${drc_out}/${fl_tav}"
     echo ${cmd_tav}
     eval ${cmd_tav}
     if [ ${dbg_lvl} -ge 1 ]; then
@@ -290,7 +309,7 @@ for ish_nm in ais gis ; do
     
     printf "Step 7: Apply Icemask to temporal means, define gridcell sums, integrate to find spatio-temporal means ...\n"
     [[ ${dbg_lvl} -ge 1 ]] && date_avg=$(date +"%s")
-    cmd_avg="ncap2 -O -s '@all=get_vars_in();*sz=@all.size();for(*idx=0;idx<sz;idx++){@var_nm=@all(idx);if(*@var_nm.ndims() >= 3){*@var_nm*=Icemask;@att_note=sprint(@var_nm,\"%s@note\");*@att_note=\"ELM/RACMO intersection mask has been applied\";@sum_nm=sprint(@var_nm,\"%s_sum\");print(\"Computing \");print(@sum_nm);print(\"...\n\");*@sum_nm=(*@var_nm*area_m).total().float();@sum_nm_gtxyr=push(@sum_nm,\"_GTxyr\");print(\"Computing \");print(@sum_nm_gtxyr);print(\"...\n\");*@sum_nm_gtxyr=*@sum_nm*365*24*60*60/1.0e12f;}}' ${drc_in}/${fl_tav} ${drc_in}/${fl_tav}"
+    cmd_avg="ncap2 -O -s '@all=get_vars_in();*sz=@all.size();for(*idx=0;idx<sz;idx++){@var_nm=@all(idx);if(*@var_nm.ndims() >= 3){*@var_nm*=Icemask;@att_note=sprint(@var_nm,\"%s@note\");*@att_note=\"ELM/RACMO intersection mask has been applied\";@sum_nm=sprint(@var_nm,\"%s_sum\");print(\"Computing \");print(@sum_nm);print(\"...\n\");*@sum_nm=(*@var_nm*area_m).total().float();@sum_nm_gtxyr=push(@sum_nm,\"_GTxyr\");print(\"Computing \");print(@sum_nm_gtxyr);print(\"...\n\");*@sum_nm_gtxyr=*@sum_nm*365*24*60*60/1.0e12f;}}' ${drc_out}/${fl_tav} ${drc_out}/${fl_tav}"
     echo ${cmd_avg}
     eval ${cmd_avg}
     if [ ${dbg_lvl} -ge 1 ]; then
@@ -310,9 +329,11 @@ if [ ${dbg_lvl} -ge 1 ]; then
 fi # !dbg
 
 echo "Quick plots and statistics:"
-echo "ncvis ${drc_in}/${fl_tav} & # Plot climatological mean ice sheet"
-echo "ncvis ${drc_in}/${fl_xav} & # Plot spatial mean timeseries"
-echo "ncks -C -v QICE_sum_GTxyr,QRUNOFF_sum_GTxyr,PRECIP_sum_GTxyr,QSOIL_sum_GTxyr ${drc_in}/${fl_tav} & # Print statistics"
+echo "ncvis   ${drc_out}/${fl_tav} & # Plot climatological mean ice sheet"
+echo "ncvis   ${drc_out}/${fl_xav} & # Plot spatial mean timeseries"
+echo "panoply ${drc_out}/${fl_tav} & # Plot climatological mean ice sheet"
+echo "panoply ${drc_out}/${fl_xav} & # Plot spatial mean timeseries"
+echo "ncks    -C -v QICE_sum_GTxyr,QRUNOFF_sum_GTxyr,PRECIP_sum_GTxyr,QSOIL_sum_GTxyr ${drc_out}/${fl_tav} & # Print statistics"
 
 date_end=$(date +"%s")
 printf "Completed LIVVkit analysis at `date`\n"
