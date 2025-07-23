@@ -9,8 +9,10 @@
 # ~/livvkit/livvkit.sh --dbg=0 --do_cah ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc
 # ~/livvkit/livvkit.sh --no_cah /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0001_0100.nc
 # ~/livvkit/livvkit.sh --do_cah /lcrc/group/e3sm/ac.zender/scratch/livvkit/v3.LR.piControl.I.hex_eqm_0101_0200.nc
+# ~/livvkit/livvkit.sh --do_cah /global/cfs/cdirs/e3sm/zender/livvkit/v3.LR.piControl.I.hex_eqm_0301_0350.nc
 # ~/livvkit/livvkit.sh /global/cfs/cdirs/e3sm/zender/livvkit/v2.1.r025.IGERA5ELM_MLI-deep_firn_1980_2020.nc
 # ~/livvkit/livvkit.sh --do_cah /global/cfs/cdirs/e3sm/zender/livvkit/v3.LR.piControl-deepfirn-mec_0001_0100.nc
+# ~/livvkit/livvkit.sh --no_drv ${DATA}/livvkit/deepfirn_PI_hex_eqm_0001_0350.nc
 # ~/livvkit/livvkit.sh ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc > ~/foo.txt 2>&1 &
 
 # Production:
@@ -77,20 +79,24 @@ dbg_lvl=0 # [enm] Debugging level
 drc_lvk="${drc_root}/livvkit" # [sng] Directory for LIVVkit-input timeseries
 drc_ts="${drc_root}/livvkit/ts" # [sng] Directory for timeseries output by this analysis
 drc_clm="${drc_root}/livvkit/clm" # [sng] Directory climatologies output by this analysis
-flg_do_cp_apn_hyp='Yes' # [flg] Perform (time-consuming) copy, append, hyperslab tasks
+flg_cp_apn_hyp='Yes' # [flg] Perform (time-consuming) copy, append, hyperslab tasks
+flg_drv='Yes' # [flg] Derive new variables
 
 function fnc_usg_prn { # NB: dash supports fnc_nm (){} syntax, not function fnc_nm{} syntax
     # Print usage
     printf "${fnt_rvr}Basic usage:\n"
     printf "${fnt_nrm} ${fnt_bld}${spt_nm} fl_in${fnt_nrm} # Specify LIVVkit input file\n"
     echo "Command-line options [long-option synonyms in ${fnt_tlc}italics${fnt_nrm}]:"
-    echo " ${fnt_bld}--cah${fnt_nrm}      Perform (time-consuming) copy, append, hyperslab tasks (default ${fnt_bld}${flg_do_cp_apn_hyp}${fnt_nrm}) [${fnt_tlc}cah, cp_apn_hyp${fnt_nrm}]"
+    echo " ${fnt_bld}--cah${fnt_nrm}      Perform (time-consuming) copy, append, hyperslab tasks (default ${fnt_bld}${flg_cp_apn_hyp}${fnt_nrm}) [${fnt_tlc}cah, cp_apn_hyp${fnt_nrm}]"
     echo "${fnt_rvr}-d${fnt_nrm} ${fnt_bld}dbg_lvl${fnt_nrm}  Debug level (default ${fnt_bld}${dbg_lvl}${fnt_nrm}) [${fnt_tlc}dbg_lvl, dbg, debug, debug_level${fnt_nrm}]"
     echo " ${fnt_bld}--do_cah${fnt_nrm}   Perform (time-consuming) copy, append, hyperslab tasks [${fnt_tlc}do_cah, do_cp_apn_hyp${fnt_nrm}]"
     echo " ${fnt_bld}--no_cah${fnt_nrm}   Do not perform (time-consuming) copy, append, hyperslab tasks [${fnt_tlc}no_cah, no_cp_apn_hyp${fnt_nrm}]"
+    echo " ${fnt_bld}--drv${fnt_nrm}      Derive new variables (CMB, PRECIP, STORAGE) (default ${fnt_bld}${flg_drv}${fnt_nrm}) [${fnt_tlc}drv, derive${fnt_nrm}]"
+    echo " ${fnt_bld}--no_drv${fnt_nrm}   Do not derive new variable [${fnt_tlc}no_drv, no_derive${fnt_nrm}]"
     printf "\n"
     printf "${fnt_rvr}Examples:${fnt_nrm}\n${fnt_bld}${spt_nm} ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc ${fnt_nrm}# Typical first-time workflow\n"
     printf "${fnt_bld}${spt_nm} --no_cah ${DATA}/livvkit/v2.1.r05.BGWCYCL20TR-steve_2005_2014.nc ${fnt_nrm}# Turn-off CAH for subsequent invocations\n"
+    printf "${fnt_bld}${spt_nm} --no_drv ${DATA}/livvkit/deepfirn_PI_hex_eqm_0001_0350.nc ${fnt_nrm}# Turn-off new variable derivation\n"
     exit 1
 } # !fnc_usg_prn()
 
@@ -130,11 +136,14 @@ while getopts :d:-: OPT; do
 	       # Long options with argument, no short option counterpart
 	       # Long options with short counterparts, ordered by short option key
 	       dbg_lvl=?* | dbg=?* | debug=?* | debug_level=?* ) dbg_lvl="${LONG_OPTARG}" ;; # -d # Debugging level
-	       cah | cp_apn_hyp ) flg_do_cp_apn_hyp=${LONG_OPTARG} ;; # # Perform (time-consuming) copy, append, hyperslab tasks
-	       do_cah | do_cp_apn_hyp ) flg_do_cp_apn_hyp='Yes' ;; # # Perform (time-consuming) copy, append, hyperslab tasks
+	       cah | cp_apn_hyp ) flg_cp_apn_hyp=${LONG_OPTARG} ;; # # Perform (time-consuming) copy, append, hyperslab tasks
+	       do_cah | do_cp_apn_hyp ) flg_cp_apn_hyp='Yes' ;; # # Perform (time-consuming) copy, append, hyperslab tasks
 	       do_cah=?* | do_cp_apn_hyp=?* ) echo "No argument allowed for --${OPTARG switch}" >&2; exit 1 ;; # # Perform (time-consuming) copy, append, hyperslab tasks
-	       no_cah | no_cp_apn_hyp ) flg_do_cp_apn_hyp='No' ;; # # Perform (time-consuming) copy, append, hyperslab tasks
-	       no_cah=?* | no_cp_apn_hyp=?* ) echo "No argument allowed for --${OPTARG switch}" >&2; exit 1 ;; # -l # Perform (time-consuming) copy, append, hyperslab tasks
+	       no_cah | no_cp_apn_hyp ) flg_cp_apn_hyp='No' ;; # # Perform (time-consuming) copy, append, hyperslab tasks
+	       no_cah=?* | no_cp_apn_hyp=?* ) echo "No argument allowed for --${OPTARG switch}" >&2; exit 1 ;; # # Perform (time-consuming) copy, append, hyperslab tasks
+	       drv | derive ) flg_drv=${LONG_OPTARG} ;; # # Derive new variables
+	       no_drv | no_derive ) flg_drv='No' ;; # # Derive new variables
+	       no_drv=?* | no_derive=?* ) echo "No argument allowed for --${OPTARG switch}" >&2; exit 1 ;; # # Derive new variables
                '' ) break ;; # "--" terminates argument processing
                * ) printf "\nERROR: Unrecognized option ${fnt_bld}--${OPTARG}${fnt_nrm}\n" >&2; fnc_usg_prn ;;
 	   esac ;; # !OPTARG
@@ -235,7 +244,7 @@ for ish_nm in ais gis ; do
     
     printf "\nBegin Analysis Workflow for "
     if [ ${ish_nm} = 'ais' ]; then printf "Antarctica\n" ; else printf "Greenland\n" ; fi
-    if [ ${flg_do_cp_apn_hyp} = 'Yes' ]; then
+    if [ ${flg_cp_apn_hyp} = 'Yes' ]; then
 
 	printf "Step 1: Copy input file to file with ice-sheet name and work on that ...\n"
 	[[ ${dbg_lvl} -ge 1 ]] && date_cp=$(date +"%s")
@@ -270,13 +279,17 @@ for ish_nm in ais gis ; do
 	    echo "Elapsed time to hyperslab input file to ice sheet = $((date_dff/60))m$((date_dff % 60))s"
 	fi # !dbg
 
-    else # !flg_do_cp_apn_hyp
+    else # !flg_cp_apn_hyp
 	printf "Skipping time-consuming Steps 1-3: copy, append, and hyperslab steps...\n"
-    fi # !flg_do_cp_apn_hyp
+    fi # !flg_cp_apn_hyp
 
     printf "Step 4: Derive area_mask weight and other variables ...\n"
     [[ ${dbg_lvl} -ge 1 ]] && date_drv=$(date +"%s")
-    cmd_drv="ncap2 -O -s 'area_m=area*1.0e6;area_m@units=\"meter2\";area_mask=area_m*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (includes snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Snowpack mass/storage tendency\";PRECIP=SNOW+RAIN;PRECIP@units=\"mm s-1\";PRECIP@long_name=\"Total precipitation = SNOW + RAIN\";' ${drc_out}/${fl_ish} ${drc_out}/${fl_ish}"
+    if [ ${flg_drv} = 'Yes' ]; then
+	cmd_drv="ncap2 -O -s 'area_m=area*1.0e6;area_m@units=\"meter2\";area_mask=area_m*Icemask;area_ttl=area_mask.sum();CMB=SNOW+RAIN-QRUNOFF-QSOIL;CMB@units=\"mm s-1\";CMB@long_name=\"Climatic Mass Balance Rate (includes snowpack)\";QSTORAGE=SNOW_SOURCES-SNOW_SINKS;QSTORAGE@units=\"mm s-1\";QSTORAGE@long_name=\"Snowpack mass/storage tendency\";PRECIP=SNOW+RAIN;PRECIP@units=\"mm s-1\";PRECIP@long_name=\"Total precipitation = SNOW + RAIN\";' ${drc_out}/${fl_ish} ${drc_out}/${fl_ish}"
+    else
+	cmd_drv="ncap2 -O -s 'area_m=area*1.0e6;area_m@units=\"meter2\";area_mask=area_m*Icemask;area_ttl=area_mask.sum();}' ${drc_out}/${fl_ish} ${drc_out}/${fl_ish}" # Derive no new variables
+    fi # !flg_drv
     echo ${cmd_drv}
     eval ${cmd_drv}
     if [ ${dbg_lvl} -ge 1 ]; then
@@ -287,7 +300,7 @@ for ish_nm in ais gis ; do
 
     printf "Step 5: Compute area-weighted timeseries ...\n"
     [[ ${dbg_lvl} -ge 1 ]] && date_xav=$(date +"%s")
-    cmd_xav="ncwa -O -a lat,lon -w area_mask ${drc_out}/${fl_ish} ${drc_out}/${fl_xav}"
+    cmd_xav="ncwa -O -6 -a lat,lon -w area_mask ${drc_out}/${fl_ish} ${drc_out}/${fl_xav}"
     echo ${cmd_xav}
     eval ${cmd_xav}
     if [ ${dbg_lvl} -ge 1 ]; then
@@ -298,7 +311,7 @@ for ish_nm in ais gis ; do
 
     printf "Step 6: Compute time-mean region ...\n"
     [[ ${dbg_lvl} -ge 1 ]] && date_tav=$(date +"%s")
-    cmd_tav="ncra -O -d time,,,12,12 --per_record_weights --wgt 31,28,31,30,31,30,31,31,30,31,30,31 ${drc_out}/${fl_ish} ${drc_out}/${fl_tav}"
+    cmd_tav="ncra -O -6 -d time,,,12,12 --per_record_weights --wgt 31,28,31,30,31,30,31,31,30,31,30,31 ${drc_out}/${fl_ish} ${drc_out}/${fl_tav}"
     echo ${cmd_tav}
     eval ${cmd_tav}
     if [ ${dbg_lvl} -ge 1 ]; then
